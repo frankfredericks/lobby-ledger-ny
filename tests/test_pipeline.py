@@ -91,3 +91,41 @@ def test_state_bill_official_pairing(tmp_path):
     assert "vega-marisol" not in pairs["A3006@2023-2024"]
     assert "march-helen" in pairs["A3006@2023-2024"]
     assert "vega-marisol" in pairs["S1464@2023-2024"]
+
+
+def test_year_filters_match_column_type():
+    from pipeline.socrata import resolve_fields
+    cols = [{"fieldName": "yr_num", "name": "Y1", "dataTypeName": "number"},
+            {"fieldName": "yr_txt", "name": "Y2", "dataTypeName": "text"},
+            {"fieldName": "dt", "name": "D", "dataTypeName": "floating_timestamp"}]
+    fm = resolve_fields({"a": {"candidates": ["yr_num"]}, "b": {"candidates": ["yr_txt"]}, "c": {"candidates": ["dt"]}}, cols)
+    assert fm.year_at_least("a", 2019) == "yr_num >= 2019"
+    assert fm.year_at_least("b", 2019) == "yr_txt >= '2019'"
+    assert fm.year_at_least("c", 2019) == "dt >= '2019-01-01T00:00:00'"
+
+
+def test_timeouts_are_retried(monkeypatch):
+    import requests
+    from pipeline import socrata
+
+    calls = {"n": 0}
+
+    class FakeResp:
+        status_code = 200
+        url = "x"
+        text = ""
+
+        def json(self):
+            return [{"ok": 1}]
+
+    def fake_get(url, params=None, timeout=None):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise requests.ReadTimeout("slow")
+        return FakeResp()
+
+    monkeypatch.setattr(socrata.time, "sleep", lambda s: None)
+    client = socrata.Socrata("example.org", "abcd-1234")
+    monkeypatch.setattr(client.s, "get", fake_get)
+    assert client._get("https://example.org/x") == [{"ok": 1}]
+    assert calls["n"] == 3

@@ -169,7 +169,7 @@ def build_city(conf: dict, settings: dict, fixtures: str | None = None) -> dict:
     where = None
     if ds.f("donor_type") and ds.f("date"):
         codes = ",".join(soql_quote(c) for c in ind)
-        where = f"{ds.f('date')} >= '{start}-01-01T00:00:00' AND NOT ({ds.f('donor_type')} IN ({codes}))"
+        where = f"{ds.year_where('date', start)} AND NOT ({ds.f('donor_type')} IN ({codes}))"
     for r in ds.rows(where):
         y = _year(r.get("date")) or _year(r.get("election"))
         if not y or y < start or (r.get("donor_type") or "").upper() in ind:
@@ -227,7 +227,7 @@ def build_city(conf: dict, settings: dict, fixtures: str | None = None) -> dict:
     # Lobbying
     lb = Dataset("city_lobbying", conf["lobbying"], fixtures, settings["page_size"])
     out.register_source("cl", lb, conf["lobbying"]["title"], conf["lobbying"]["page_url"])
-    where = f"{lb.f('year')} >= {start}" if lb.f("year") else None
+    where = lb.year_where("year", start)
     for r in lb.rows(where):
         y = _year(r.get("year"))
         if not y or y < start or not (r.get("activities") or r.get("targets")):
@@ -292,7 +292,7 @@ def build_state(conf: dict, settings: dict, fixtures: str | None = None) -> dict
     # 1) Lobbying first: party names give a clean list of legislators.
     lb = Dataset("state_lobbying", conf["lobbying"], fixtures, settings["page_size"])
     out.register_source("sl", lb, conf["lobbying"]["title"], conf["lobbying"]["page_url"])
-    where = f"{lb.f('year')} >= {start}" if lb.f("year") else None
+    where = lb.year_where("year", start)
     forms: dict[str, dict] = {}
     for r in lb.rows(where):
         y = _year(r.get("year"))
@@ -359,9 +359,7 @@ def build_state(conf: dict, settings: dict, fixtures: str | None = None) -> dict
     ind = {t.lower() for t in cc["individual_types"]}
     ie_markers = [m.lower() for m in cc["ie_committee_markers"]]
     offices = [o.lower() for o in cc["offices"]]
-    where = None
-    if ds.f("year"):
-        where = f"{ds.f('year')} >= {start}"
+    where = ds.year_where("year", start)
     ie_filers: dict[str, str] = {}
     for r in ds.rows(where):
         y = _year(r.get("date")) or _year(r.get("year"))
@@ -411,7 +409,7 @@ def build_state(conf: dict, settings: dict, fixtures: str | None = None) -> dict
         ids = list(ie_filers)
         for i in range(0, len(ids), 150):
             chunk = ",".join(soql_quote(x) for x in ids[i:i + 150])
-            w = f"{ie.f('filer_id')} IN ({chunk}) AND {ie.f('year')} >= {start}"
+            w = f"{ie.f('filer_id')} IN ({chunk})" + (f" AND {ie.year_where('year', start)}" if ie.f("year") else "")
             for r in ie.rows(w):
                 if str(r.get("filer_id")) not in ie_filers or not r.get("target"):
                     continue

@@ -22,9 +22,22 @@ class FieldMap:
     resolved: dict[str, str | None] = field(default_factory=dict)
     missing_required: list[str] = field(default_factory=list)
     available: list[tuple[str, str]] = field(default_factory=list)  # (fieldName, display name)
+    types: dict[str, str] = field(default_factory=dict)              # fieldName -> Socrata data type
 
     def get(self, logical: str) -> str | None:
         return self.resolved.get(logical)
+
+    def year_at_least(self, logical: str, year: int) -> str | None:
+        """SoQL filter 'field >= year' written to match the column's data type."""
+        f = self.get(logical)
+        if not f:
+            return None
+        t = self.types.get(f, "").lower()
+        if t in ("number", "double", "money"):
+            return f"{f} >= {int(year)}"
+        if "date" in t or "timestamp" in t:
+            return f"{f} >= '{int(year)}-01-01T00:00:00'"
+        return f"{f} >= '{int(year)}'"  # text years compare correctly as 4-digit strings
 
 
 def resolve_fields(spec: dict, columns: list[dict]) -> FieldMap:
@@ -35,7 +48,8 @@ def resolve_fields(spec: dict, columns: list[dict]) -> FieldMap:
     """
     by_field = {c["fieldName"].lower(): c["fieldName"] for c in columns}
     by_name = {_norm(c.get("name", "")): c["fieldName"] for c in columns}
-    fm = FieldMap(available=[(c["fieldName"], c.get("name", "")) for c in columns])
+    fm = FieldMap(available=[(c["fieldName"], c.get("name", "")) for c in columns],
+                  types={c["fieldName"]: c.get("dataTypeName", "") for c in columns})
     taken: set[str] = set()
     for logical, conf in spec.items():
         hit = None
@@ -74,15 +88,25 @@ class Socrata:
     def resource_url(self) -> str:
         return f"https://{self.domain}/resource/{self.id}.json"
 
-    def _get(self, url: str, params: dict | None = None, tries: int = 5):
+    def _get(self, url: str, params: dict | None = None, tries: int = 6):
+        """GET with retries. The open data portals are slow under load, so timeouts
+        and dropped connections are retried with growing waits before giving up."""
+        last = None
         for i in range(tries):
-            r = self.s.get(url, params=params, timeout=180)
-            if r.status_code in (429, 500, 502, 503, 504):
-                time.sleep(2 ** i * 3)
+            try:
+                r = self.s.get(url, params=params, timeout=300)
+            except (requests.Timeout, requests.ConnectionError) as e:
+                last = e
+                time.sleep(min(120, 10 * 2 ** i))
                 continue
-            r.raise_for_status()
+            if r.status_code in (429, 500, 502, 503, 504):
+                last = requests.HTTPError(f"HTTP {r.status_code} from {url}")
+                time.sleep(min(120, 10 * 2 ** i))
+                continue
+            if r.status_code >= 400:
+                raise requests.HTTPError(f"HTTP {r.status_code} from {r.url}: {r.text[:300]}")
             return r.json()
-        r.raise_for_status()
+        raise last
 
     def columns(self) -> list[dict]:
         meta = self._get(f"https://{self.domain}/api/views/{self.id}.json")

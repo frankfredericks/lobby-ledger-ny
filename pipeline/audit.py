@@ -22,20 +22,38 @@ from .normalize import candidate_from_committee, entity_key
 from .officials import OfficialIndex
 from .sources import Dataset
 
-SAMPLE = 20000
+SAMPLE = 5000
 
 
 def pct(a, b):
     return f"{(100 * a / b):.0f}%" if b else "n/a"
 
 
+FAILURES: list[str] = []
+
+
 def take(ds: Dataset, where=None, n=SAMPLE):
+    """Sample up to n rows. A dataset that won't respond is recorded, not fatal:
+    the audit is a diagnostic and shouldn't block the site build."""
+    if not ds.available:
+        return []
     out = []
-    for r in ds.rows(where):
-        out.append(r)
-        if len(out) >= n:
-            break
+    try:
+        for r in ds.rows(where, limit=n):
+            out.append(r)
+            if len(out) >= n:
+                break
+    except Exception as e:  # noqa: BLE001
+        FAILURES.append(f"{ds.key}: {type(e).__name__}: {str(e)[:200]}")
     return out
+
+
+def open_ds(key, conf, fx):
+    try:
+        return Dataset(key, conf, fx)
+    except Exception as e:  # noqa: BLE001
+        FAILURES.append(f"{key}: couldn't read column list ({type(e).__name__}: {str(e)[:200]})")
+        return Dataset(key, {**conf, "id": None}, None)
 
 
 def schema_section(ds: Dataset) -> list[str]:
@@ -62,19 +80,19 @@ def main(argv=None):
     rep = ["# Data audit", "", f"Sample size per dataset: up to {SAMPLE:,} rows from {start} onward.", "",
            "## Schema", ""]
 
-    cc = Dataset("city_contributions", S["city"]["contributions"], fx)
-    cl = Dataset("city_lobbying", S["city"]["lobbying"], fx)
-    cf = Dataset("city_fundraising", S["city"]["fundraising"], fx)
-    cd = Dataset("city_doing_business", S["city"]["doing_business"], fx)
-    sc = Dataset("state_contributions", S["state"]["contributions"], fx)
-    sl = Dataset("state_lobbying", S["state"]["lobbying"], fx)
-    se = Dataset("state_ie_expenditures", S["state"]["ie_expenditures"], fx)
+    cc = open_ds("city_contributions", S["city"]["contributions"], fx)
+    cl = open_ds("city_lobbying", S["city"]["lobbying"], fx)
+    cf = open_ds("city_fundraising", S["city"]["fundraising"], fx)
+    cd = open_ds("city_doing_business", S["city"]["doing_business"], fx)
+    sc = open_ds("state_contributions", S["state"]["contributions"], fx)
+    sl = open_ds("state_lobbying", S["state"]["lobbying"], fx)
+    se = open_ds("state_ie_expenditures", S["state"]["ie_expenditures"], fx)
     for d in (cc, cl, cf, cd, sc, sl, se):
         rep += schema_section(d)
 
     rep += ["## City", ""]
     ind = set(S["city"]["contributions"]["individual_codes"])
-    rows = take(cc, f"{cc.f('date')} >= '{start}-01-01T00:00:00'" if cc.f("date") else None) if cc.available else []
+    rows = take(cc, cc.year_where("date", start))
     types = Counter((r.get("donor_type") or "").upper() for r in rows)
     org = [r for r in rows if (r.get("donor_type") or "").upper() not in ind]
     rep.append(f"- Contribution donor types in sample: {dict(types.most_common(12))}")
@@ -94,7 +112,7 @@ def main(argv=None):
     for r in rows:
         offs.add(r.get("recip_name", ""))
 
-    lrows = take(cl, f"{cl.f('year')} >= {start}" if cl.f("year") else None) if cl.available else []
+    lrows = take(cl, cl.year_where("year", start))
     clients = {entity_key(r.get("client_name", "")) for r in lrows}
     rep.append(f"- Lobbying clients that also appear as organization donors: "
                f"{pct(len(clients & donors), len(clients))} ({len(clients & donors)} of {len(clients)})")
@@ -112,14 +130,14 @@ def main(argv=None):
     rep.append(f"- Council-member targets linked to a named official: {pct(matched, tgt)} ({matched} of {tgt})")
     if cd.available:
         dbk = set()
-        for r in take(cd, n=200000):
+        for r in take(cd, n=50000):
             for k in ("entity", "name"):
                 if r.get(k):
                     dbk.add(entity_key(r[k]))
         rep.append(f"- Organization donors found on the Doing Business list: {pct(len(donors & dbk), len(donors))}")
 
     rep += ["", "## State", ""]
-    srows = take(sl, f"{sl.f('year')} >= {start}" if sl.f("year") else None) if sl.available else []
+    srows = take(sl, sl.year_where("year", start))
     bill_rows = [r for r in srows if "BILL" in (r.get("focus_type") or "").upper()]
     parsed = sum(1 for r in bill_rows if B.parse_state(r.get("focus", ""), int(r.get("year") or start)))
     posd = Counter(B.detect_position(r.get("focus", "")) for r in bill_rows)
@@ -136,7 +154,7 @@ def main(argv=None):
     gb = Counter(r.get("gov_body", "") for r in srows)
     rep.append(f"- Top government bodies lobbied: {dict(gb.most_common(8))}")
     sclients = {entity_key(r.get("client_name", "")) for r in srows}
-    crow = take(sc, f"{sc.f('year')} >= {start}" if sc.f("year") else None) if sc.available else []
+    crow = take(sc, sc.year_where("year", start))
     stypes = Counter(r.get("donor_type", "") for r in crow)
     rep.append(f"- Contribution donor types in sample: {dict(stypes.most_common(10))}")
     from .normalize import parent_key
@@ -148,6 +166,8 @@ def main(argv=None):
     rep.append(f"- Office column present: {'yes' if sc.f('office') else 'no — officials matched by committee name only'}")
     rep.append(f"- IE spending target column present: {'yes' if se.f('target') else 'no — super PAC → official links unavailable'}")
 
+    if FAILURES:
+        rep += ["", "## Datasets that didn't respond during the audit", ""] + [f"- {x}" for x in FAILURES]
     os.makedirs("data/review", exist_ok=True)
     with open("data/review/audit_report.md", "w") as f:
         f.write("\n".join(rep) + "\n")

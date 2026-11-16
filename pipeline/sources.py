@@ -47,14 +47,14 @@ class Dataset:
     def year_where(self, logical: str, year: int) -> str | None:
         return self.fields.year_at_least(logical, year)
 
-    def rows(self, where: str | None = None, limit: int | None = None):
+    def rows(self, where: str | None = None, limit: int | None = None, ordered: bool = True):
         """Yield rows keyed by LOGICAL field names."""
         inv = {v: k for k, v in self.fields.resolved.items() if v}
         if self._fixture is not None:
             src = self._fixture["rows"][:limit] if limit else self._fixture["rows"]
         elif self.client is not None:
             src = self.client.rows(list(inv), where=where, page_size=min(self.page_size, limit or self.page_size),
-                                   limit=limit)
+                                   limit=limit, ordered=ordered)
         else:
             return
         for r in src:

@@ -16,4 +16,4 @@ entity_match:
   review: 88
 
 # Rows per API page.
-page_size: 10000
+page_size: 25000

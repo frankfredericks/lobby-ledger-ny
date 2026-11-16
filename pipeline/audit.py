@@ -39,7 +39,7 @@ def take(ds: Dataset, where=None, n=SAMPLE):
         return []
     out = []
     try:
-        for r in ds.rows(where, limit=n):
+        for r in ds.rows(where, limit=n, ordered=False):
             out.append(r)
             if len(out) >= n:
                 break

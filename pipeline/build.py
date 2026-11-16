@@ -293,6 +293,9 @@ def build_state(conf: dict, settings: dict, fixtures: str | None = None) -> dict
     lb = Dataset("state_lobbying", conf["lobbying"], fixtures, settings["page_size"])
     out.register_source("sl", lb, conf["lobbying"]["title"], conf["lobbying"]["page_url"])
     where = lb.year_where("year", start)
+    if lb.f("level"):
+        lvl = f"({lb.f('level')} IS NULL OR upper({lb.f('level')}) != 'MUNICIPAL')"
+        where = f"{where} AND {lvl}" if where else lvl
     forms: dict[str, dict] = {}
     for r in lb.rows(where):
         y = _year(r.get("year"))
@@ -359,7 +362,17 @@ def build_state(conf: dict, settings: dict, fixtures: str | None = None) -> dict
     ind = {t.lower() for t in cc["individual_types"]}
     ie_markers = [m.lower() for m in cc["ie_committee_markers"]]
     offices = [o.lower() for o in cc["offices"]]
+    # Filter on the server: organizations' contributions, plus anyone's
+    # contributions to independent-expenditure committees. Without this the
+    # download includes every individual donor in every race in the state.
     where = ds.year_where("year", start)
+    if ds.f("donor_type"):
+        inds = ",".join(soql_quote(t.upper()) for t in cc["individual_types"])
+        ie_cond = [f"upper({ds.f('filer_name')}) like '%INDEPENDENT EXPENDITURE%'"]
+        if ds.f("committee_type"):
+            ie_cond.append(f"upper({ds.f('committee_type')}) like '%INDEPENDENT EXPENDITURE%'")
+        org_cond = f"NOT (upper({ds.f('donor_type')}) IN ({inds}))"
+        where = f"{where} AND ({org_cond} OR {' OR '.join(ie_cond)})" if where else f"({org_cond} OR {' OR '.join(ie_cond)})"
     ie_filers: dict[str, str] = {}
     for r in ds.rows(where):
         y = _year(r.get("date")) or _year(r.get("year"))

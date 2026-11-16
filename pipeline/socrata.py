@@ -123,20 +123,35 @@ class Socrata:
         return int(rows[0]["n"]) if rows else 0
 
     def rows(self, select: list[str], where: str | None = None, page_size: int = 50000,
-             limit: int | None = None):
-        offset = 0
+             limit: int | None = None, ordered: bool = True):
+        """Yield rows. Pages are fetched by row id ("give me rows after the last id
+        I saw") rather than by offset, which stays fast deep into big datasets.
+        ordered=False skips sorting, for quick samples."""
+        label = f"{self.domain}/{self.id}"
+        got, last, t0 = 0, None, time.time()
         while True:
-            n = page_size if limit is None else min(page_size, limit - offset)
+            n = page_size if limit is None else min(page_size, limit - got)
             if n <= 0:
                 return
-            params = {"$select": ",".join(select), "$limit": n, "$offset": offset, "$order": ":id"}
-            if where:
-                params["$where"] = where
+            w = where
+            if ordered and last is not None:
+                w = f"({where}) AND :id > {soql_quote(last)}" if where else f":id > {soql_quote(last)}"
+            params = {"$select": ",".join([":id"] + select), "$limit": n}
+            if ordered:
+                params["$order"] = ":id"
+            if w:
+                params["$where"] = w
             page = self._get(self.resource_url, params)
-            yield from page
-            if len(page) < n:
+            for r in page:
+                last = r.get(":id", last)
+                yield r
+            got += len(page)
+            if got and (got // page_size) % 10 == 0:
+                print(f"  {label}: {got:,} rows in {time.time() - t0:,.0f}s", flush=True)
+            if len(page) < n or not ordered:
+                if got:
+                    print(f"  {label}: done, {got:,} rows in {time.time() - t0:,.0f}s", flush=True)
                 return
-            offset += n
 
     def record_url(self, key_values: dict[str, str]) -> str:
         """Link to the exact source record(s) as JSON from the official API."""

@@ -44,7 +44,7 @@ def main(argv=None):
             print(f"  warning: {w}")
         if any("required fields not found" in w for w in m["warnings"]):
             failed = True
-    with open(f"{args.out}/manifest.json", "w") as f:
+    with open(f"{args.out}/manifest{'-' + args.only if args.only else ''}.json", "w") as f:
         json.dump(manifest, f, indent=2)
     if failed:
         print("Build stopped: a dataset's columns changed. Run `python -m pipeline.audit` and update config/sources.yml.")

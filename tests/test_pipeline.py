@@ -129,3 +129,24 @@ def test_timeouts_are_retried(monkeypatch):
     monkeypatch.setattr(client.s, "get", fake_get)
     assert client._get("https://example.org/x") == [{"ok": 1}]
     assert calls["n"] == 3
+
+
+def test_paging_by_row_id(monkeypatch):
+    from pipeline import socrata
+
+    data = [{":id": f"row-{i:04d}", "v": i} for i in range(25)]
+    seen = []
+
+    def fake_get(self, url, params=None, tries=6):
+        seen.append(params.get("$where", ""))
+        w = params.get("$where", "")
+        after = w.split(":id > ")[1].strip("'") if ":id > " in w else ""
+        rest = [r for r in data if r[":id"] > after]
+        return rest[: params["$limit"]]
+
+    monkeypatch.setattr(socrata.Socrata, "_get", fake_get)
+    c = socrata.Socrata("example.org", "abcd-1234")
+    out = list(c.rows(["v"], where="v >= 0", page_size=10))
+    assert [r["v"] for r in out] == list(range(25))
+    assert seen[0] == "v >= 0" and seen[1] == "(v >= 0) AND :id > 'row-0009'"
+    assert len(list(c.rows(["v"], page_size=10, limit=5, ordered=False))) == 5

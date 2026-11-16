@@ -5,7 +5,7 @@ State: NYS Senate Open Legislation API (free key: https://legislation.nysenate.g
 City:  NYC Council Legistar Web API (free token: https://council.nyc.gov/legislation/api).
        Set LEGISTAR_TOKEN.
 
-Titles are cached in data/cache/bill_titles.json, which the monthly workflow
+Titles are cached in data/cache/bill_titles_<city|state>.json, which the monthly workflow
 commits, so each run only looks up bills it hasn't seen before. Without a key,
 bills keep their numbers and the build adds a coverage warning.
 """
@@ -17,7 +17,7 @@ import time
 
 import requests
 
-CACHE = "data/cache/bill_titles.json"
+CACHE = "data/cache/bill_titles_{}.json"
 NYS_KEY = os.environ.get("NYSENATE_API_KEY", "")
 LEGISTAR_TOKEN = os.environ.get("LEGISTAR_TOKEN", "")
 MAX_LOOKUPS = int(os.environ.get("BILL_TITLE_MAX_LOOKUPS", "4000"))  # per run, per jurisdiction
@@ -74,7 +74,7 @@ def enrich(data: dict, jurisdiction: str, fixtures: str | None = None) -> None:
         for bid, b in bills.items():
             b.update(known.get(bid, {}))
         return
-    cache = _load(CACHE)
+    cache = _load(CACHE.format(jurisdiction))
     have_key = NYS_KEY if jurisdiction == "state" else LEGISTAR_TOKEN
     lookup = _state_lookup if jurisdiction == "state" else _city_lookup
     s = requests.Session()
@@ -89,7 +89,7 @@ def enrich(data: dict, jurisdiction: str, fixtures: str | None = None) -> None:
             looked += 1
             time.sleep(0.15)  # stay well under the APIs' rate limits
         b.update(cache.get(ck) or {})
-    _save(CACHE, cache)
+    _save(CACHE.format(jurisdiction), cache)
     missing = sum(1 for b in bills.values() if not b.get("title"))
     if not have_key:
         name = "NYSENATE_API_KEY" if jurisdiction == "state" else "LEGISTAR_TOKEN"

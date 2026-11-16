@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>How this works — Lobby Ledger NY</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  main { max-width: 46rem; }
+  main h1 { font-size: 2.2rem; line-height: 1.15; letter-spacing: -0.02em; margin: 0 0 1rem; }
+  main h2 { font-size: 1.3rem; margin: 2.2rem 0 0.5rem; padding-top: 0.6rem; border-top: 2px solid var(--ink); }
+  main p, main li { max-width: 70ch; }
+  main li { margin-bottom: 0.4rem; }
+</style>
+</head>
+<body>
+<header class="top"><div class="top-inner"><a class="brand" href="index.html#/city">Lobby Ledger NY<small>Who funds and lobbies New York officials</small></a></div></header>
+<main>
+<h1>How this works and what it can’t tell you</h1>
+<p>This site puts New York’s separate campaign finance and lobbying records side by side so you can follow one organization or one official across all of them. It shows what was filed. It doesn’t judge it.</p>
+
+<h2 id="relationships">What a connection does and doesn’t mean</h2>
+<ul>
+  <li><b>A donation is not a bribe, and a lobbying contact is not a deal.</b> Giving money and lobbying are legal and common. A connection on this site means a public filing links the two names, nothing more.</li>
+  <li><b>Super PAC money isn’t the candidate’s money.</b> Independent expenditure committees are legally barred from coordinating with candidates. When we show an organization “through a super PAC,” the organization gave to the committee, and the committee spent on the race. The candidate may not have known who funded it.</li>
+  <li><b>Lobbying filings don’t say how anyone voted or what was agreed.</b> They report who a lobbyist contacted, on which matters, during a two-month period.</li>
+  <li><b>Positions on bills are optional.</b> New York doesn’t require lobbyists to say whether they support or oppose a bill. When a filer wrote “support” or “oppose” into the filing, we show it as a self-described position. Most filings don’t include one, so a missing position means nothing.</li>
+  <li><b>Matching can be wrong.</b> Each agency records names its own way. We match names using the rules below, and every row links to the original government record so you can check it before you cite it.</li>
+</ul>
+
+<h2 id="matching">How names are matched</h2>
+<ul>
+  <li><b>Organizations.</b> Names are standardized (capitalization, punctuation, legal endings like Inc. and LLC, common abbreviations). Names that become identical are treated as one organization; near-identical names are merged only at very high similarity, and borderline pairs go to a person for review. A page lists every spelling it combines under “Also filed as.”</li>
+  <li><b>Organizations and their PACs</b> are kept as separate entities and shown as affiliates, with the PAC’s giving included on the parent organization’s page and labeled with the PAC’s name.</li>
+  <li><b>Officials.</b> A lobbying target is linked to an official only when both their first and last names appear in the filing. Everyone else contacted stays listed under “Other agencies and staff lobbied,” exactly as filed.</li>
+  <li><b>Bills.</b> Filers type bill numbers freely (“S1464A / 1749”, “Intro 30”, “Int. No. 412-2024”). We convert them to one ID per bill per session. State bills are grouped across amendment letters. City bill numbers restart every Council session, so we assign the session from the filing year unless the filer included the bill’s year.</li>
+</ul>
+
+<h2 id="scope">What’s included</h2>
+<ul>
+  <li><b>Organizations, not individuals.</b> Donor lists show organizations: PACs, unions, party committees, companies and associations. Individuals appear only as donors to super PACs. City law bars corporations, LLCs and partnerships from giving to City candidates, so City donor lists are mostly PACs and unions; company influence in City races shows up through super PACs and lobbying.</li>
+  <li><b>The $2,500 line.</b> Officials’ donor lists show organizations whose total giving in the years you selected is $2,500 or more. City contribution limits are lower than that per election, so in a single City cycle few organizations cross it; widen the year range to see repeat donors.</li>
+  <li><b>Years.</b> Records start in 2019, when the State’s lobbying data on Open NY begins.</li>
+  <li><b>Updates.</b> The site rebuilds once a month from each agency’s published data. Agencies update on their own schedules, so a month’s rebuild may not include the most recent filings.</li>
+</ul>
+
+<h2 id="sources">Sources</h2>
+<ul>
+  <li>NYC Campaign Finance Board: <a href="https://data.cityofnewyork.us/City-Government/Campaign-Contributions/rjkp-yttg">campaign contributions</a>, <a href="https://data.cityofnewyork.us/City-Government/Doing-Business-Contributions-Summary/fbkk-n4e3">Doing Business contributions summary</a>, and <a href="https://www.nyccfb.info/follow-the-money/follow-the-money/">independent expenditures</a>.</li>
+  <li>NYC City Clerk: <a href="https://data.cityofnewyork.us/City-Government/City-Clerk-eLobbyist-Data/fmf3-knd8">eLobbyist filings</a> and <a href="https://data.cityofnewyork.us/City-Government/Lobbyists-Fundraising-and-Political-Consulting-Rep/7arw-dbem">lobbyist fundraising and political consulting reports</a>.</li>
+  <li>NYS Board of Elections: <a href="https://data.ny.gov/Government-Finance/Campaign-Finance-Disclosure-Reports-Contributions-/4j2b-6a2j">campaign finance contributions</a> and <a href="https://data.ny.gov/Government-Finance/Campaign-Finance-Disclosure-Reports-Data-Beginning/e9ss-239a">disclosure reports</a>.</li>
+  <li>NYS Commission on Ethics and Lobbying in Government: <a href="https://data.ny.gov/d/t9kf-dqbc">lobbyist bi-monthly reports, 2019 to present</a>.</li>
+  <li>Bill names: <a href="https://legislation.nysenate.gov/">NYS Senate Open Legislation</a> and the <a href="https://legistar.council.nyc.gov/">NYC Council Legislative Research Center</a>.</li>
+</ul>
+
+<h2 id="corrections">Corrections</h2>
+<p>If a record is matched to the wrong person or organization, email <a id="corr" href="mailto:corrections@example.org">corrections@example.org</a> with the page link and the source record. Fixes are applied in the next monthly update and noted in the project’s change log.</p>
+</main>
+<footer><p class="credit" id="credit">Built by Frank Fredericks</p></footer>
+<script src="config.js"></script>
+<script>
+  if (window.SITE_CONFIG && SITE_CONFIG.corrections_email) {
+    if (SITE_CONFIG.credit) document.getElementById("credit").textContent = SITE_CONFIG.credit;
+    const a = document.getElementById("corr"); a.href = "mailto:" + SITE_CONFIG.corrections_email; a.textContent = SITE_CONFIG.corrections_email;
+  }
+</script>
+</body>
+</html>

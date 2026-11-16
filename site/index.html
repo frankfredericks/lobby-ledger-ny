@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lobby Ledger NY</title>
+<meta name="description" content="Campaign contributions, super PAC money and lobbying in New York City and State, linked in one place.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧾</text></svg>">
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <a class="brand" href="#/city">Lobby Ledger NY</a>
+    <nav class="tabs" aria-label="Jurisdiction">
+      <a data-j="city" href="#/city">City</a>
+      <a data-j="state" href="#/state">State</a>
+    </nav>
+    <div class="years">
+      <label for="from">Years</label>
+      <select id="from" aria-label="From year"></select>
+      <span aria-hidden="true">to</span>
+      <select id="to" aria-label="To year"></select>
+    </div>
+  </div>
+</header>
+<div class="notice" id="notice" aria-live="polite"></div>
+<main id="main"><p>Loading filings…</p></main>
+<footer>
+  <p id="updated"></p>
+  <p>Built from public records: NYC Campaign Finance Board contributions and independent spending, NYC City Clerk lobbying and lobbyist fundraising reports, the NYC Doing Business list, NYS Board of Elections campaign finance reports, and NYS Commission on Ethics and Lobbying in Government bi-monthly lobbying reports. Every row links to its source record.</p>
+  <p><a href="methodology.html">How this works and its limits</a>. <a href="methodology.html#corrections">Report an error</a>.</p>
+  <p class="credit" id="credit">Built by Frank Fredericks</p>
+</footer>
+<script src="config.js"></script>
+<script src="charts.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

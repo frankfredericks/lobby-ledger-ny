@@ -6,7 +6,10 @@ import json
 import os
 from urllib.parse import urlencode
 
+from . import rawcache
 from .socrata import FieldMap, Socrata, resolve_fields
+
+CACHE_ON = os.environ.get("PIPELINE_CACHE", "1") != "0"
 
 
 class Dataset:
@@ -47,14 +50,29 @@ class Dataset:
     def year_where(self, logical: str, year: int) -> str | None:
         return self.fields.year_at_least(logical, year)
 
-    def rows(self, where: str | None = None, limit: int | None = None, ordered: bool = True):
-        """Yield rows keyed by LOGICAL field names."""
+    def rows(self, where: str | None = None, limit: int | None = None, ordered: bool = True,
+             cache: bool = True):
+        """Yield rows keyed by LOGICAL field names.
+
+        Full live downloads go through the resumable cache (see rawcache.py);
+        samples (limit / unordered) and cache=False queries go straight to the API.
+        """
         inv = {v: k for k, v in self.fields.resolved.items() if v}
         if self._fixture is not None:
             src = self._fixture["rows"][:limit] if limit else self._fixture["rows"]
         elif self.client is not None:
-            src = self.client.rows(list(inv), where=where, page_size=min(self.page_size, limit or self.page_size),
-                                   limit=limit, ordered=ordered)
+            select = list(inv)
+            if cache and CACHE_ON and limit is None and ordered:
+                rc = rawcache.RawCache(self.key, where, select)
+                done = rc.sync(lambda after: self.client.pages(select, where, self.page_size, after=after))
+                if not done:
+                    if not rc.complete_path():
+                        raise rawcache.NotReady(self.key)
+                    print(f"  {self.key}: download unfinished; using the copy from {rc.meta['complete']}", flush=True)
+                src = rc.read()
+            else:
+                src = self.client.rows(select, where=where, page_size=min(self.page_size, limit or self.page_size),
+                                       limit=limit, ordered=ordered)
         else:
             return
         for r in src:

@@ -423,7 +423,7 @@ def build_state(conf: dict, settings: dict, fixtures: str | None = None) -> dict
         for i in range(0, len(ids), 150):
             chunk = ",".join(soql_quote(x) for x in ids[i:i + 150])
             w = f"{ie.f('filer_id')} IN ({chunk})" + (f" AND {ie.year_where('year', start)}" if ie.f("year") else "")
-            for r in ie.rows(w):
+            for r in ie.rows(w, cache=False):
                 if str(r.get("filer_id")) not in ie_filers or not r.get("target"):
                     continue
                 y = _year(r.get("year"))

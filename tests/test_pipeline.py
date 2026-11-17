@@ -197,3 +197,90 @@ def test_batch_shrinks_when_a_server_keeps_failing(monkeypatch):
     c = socrata.Socrata("example.org", "abcd-1234")
     out = list(c.rows(["v"], page_size=8000))
     assert len(out) == 5000 and limits[:3] == [8000, 4000, 2000]
+
+
+def test_download_resumes_across_runs(tmp_path, monkeypatch):
+    import gzip
+    from pipeline import rawcache
+
+    data = [{":id": f"row-{i:04d}", "v": str(i)} for i in range(50)]
+
+    def pages_after(after, size=10):
+        rest = [r for r in data if after is None or r[":id"] > after]
+        for i in range(0, len(rest), size):
+            yield rest[i:i + size]
+
+    # Run 1: budget runs out after the first page.
+    calls = {"n": 0}
+
+    def tick():
+        calls["n"] += 1
+        return calls["n"] > 1  # first check passes, second (after page 1) says time is up
+
+    monkeypatch.setattr(rawcache, "out_of_time", tick)
+    rc = rawcache.RawCache("ds", "v >= 0", ["v"], root=str(tmp_path))
+    assert rc.sync(pages_after) is False
+    assert rc.meta["rows"] == 10 and rc.meta["last_id"] == "row-0009"
+    try:
+        list(rc.read())
+        assert False, "should not read an unfinished first download"
+    except rawcache.NotReady:
+        pass
+
+    # Simulate a run killed mid-write: junk bytes after the last recorded page.
+    with open(rc.partial_path, "ab") as f:
+        f.write(b"\x1f\x8b garbage")
+
+    # Run 2: plenty of time. Resumes after row 9, cleans up the junk, finishes.
+    monkeypatch.setattr(rawcache, "out_of_time", lambda: False)
+    rc2 = rawcache.RawCache("ds", "v >= 0", ["v"], root=str(tmp_path))
+    assert rc2.sync(pages_after) is True
+    assert [r["v"] for r in rc2.read()] == [str(i) for i in range(50)]
+
+    # Run 3, same month: nothing to download.
+    def must_not_download(after):
+        raise AssertionError("downloaded again")
+        yield
+    rc3 = rawcache.RawCache("ds", "v >= 0", ["v"], root=str(tmp_path))
+    assert rc3.sync(must_not_download) is True
+
+    # Next month, budget runs out immediately: last month's copy is still served.
+    monkeypatch.setattr(rawcache, "this_month", lambda: "2099-01")
+    monkeypatch.setattr(rawcache, "out_of_time", lambda: True)
+    rc4 = rawcache.RawCache("ds", "v >= 0", ["v"], root=str(tmp_path))
+    assert rc4.sync(pages_after) is False
+    assert len(list(rc4.read())) == 50
+
+    # A changed query discards the old download.
+    rc5 = rawcache.RawCache("ds", "v >= 1", ["v"], root=str(tmp_path))
+    assert rc5.complete_path() is None
+
+
+def test_live_dataset_uses_cache_and_reports_not_ready(tmp_path, monkeypatch):
+    from pipeline import rawcache, socrata, sources
+
+    cols = [{"fieldName": "nm", "name": "Name", "dataTypeName": "text"}]
+    data = [{":id": f"row-{i:03d}", "nm": f"Org {i}"} for i in range(30)]
+
+    def fake_pages(self, select, where=None, page_size=0, limit=None, ordered=True, after=None):
+        rest = [r for r in data if after is None or r[":id"] > after]
+        for i in range(0, len(rest), 10):
+            yield rest[i:i + 10]
+
+    monkeypatch.setattr(socrata.Socrata, "columns", lambda self: cols)
+    monkeypatch.setattr(socrata.Socrata, "pages", fake_pages)
+    monkeypatch.setattr(rawcache, "ROOT", str(tmp_path))
+    monkeypatch.setattr(rawcache.RawCache.__init__, "__defaults__", (str(tmp_path),))
+    conf = {"domain": "example.org", "id": "abcd-1234", "fields": {"name": {"candidates": ["nm"]}}}
+
+    monkeypatch.setattr(rawcache, "out_of_time", lambda: True)
+    ds = sources.Dataset("x", conf)
+    try:
+        list(ds.rows("nm IS NOT NULL"))
+        assert False, "expected NotReady"
+    except rawcache.NotReady:
+        pass
+
+    monkeypatch.setattr(rawcache, "out_of_time", lambda: False)
+    got = list(sources.Dataset("x", conf).rows("nm IS NOT NULL"))
+    assert len(got) == 30 and got[0] == {"name": "Org 0"}

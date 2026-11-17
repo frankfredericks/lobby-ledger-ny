@@ -133,13 +133,15 @@ class Socrata:
         rows = self._get(self.resource_url, params)
         return int(rows[0]["n"]) if rows else 0
 
-    def rows(self, select: list[str], where: str | None = None, page_size: int = 50000,
-             limit: int | None = None, ordered: bool = True):
-        """Yield rows. Pages are fetched by row id ("give me rows after the last id
-        I saw") rather than by offset, which stays fast deep into big datasets.
-        ordered=False skips sorting, for quick samples."""
+    def pages(self, select: list[str], where: str | None = None, page_size: int = 50000,
+              limit: int | None = None, ordered: bool = True, after: str | None = None):
+        """Yield pages (lists of rows). Pages are fetched by row id ("rows after the
+        last id I saw") rather than by offset, which stays fast deep into big
+        datasets and lets a download resume from `after`. ordered=False skips
+        sorting, for quick samples."""
         label = f"{self.domain}/{self.id}"
-        got, last, t0 = 0, None, time.time()
+        got, last, t0 = 0, after, time.time()
+        next_report = 10 * page_size
         while True:
             n = page_size if limit is None else min(page_size, limit - got)
             if n <= 0:
@@ -162,16 +164,22 @@ class Socrata:
                 page_size = max(1000, page_size // 2)
                 print(f"  {label}: {type(e).__name__}; retrying with batches of {page_size:,}", flush=True)
                 continue
-            for r in page:
-                last = r.get(":id", last)
-                yield r
+            if page:
+                last = page[-1].get(":id", last)
             got += len(page)
-            if got and (got // page_size) % 10 == 0:
+            yield page
+            if got >= next_report:
                 print(f"  {label}: {got:,} rows in {time.time() - t0:,.0f}s", flush=True)
+                next_report += 10 * page_size
             if len(page) < n or not ordered:
                 if got:
                     print(f"  {label}: done, {got:,} rows in {time.time() - t0:,.0f}s", flush=True)
                 return
+
+    def rows(self, select: list[str], where: str | None = None, page_size: int = 50000,
+             limit: int | None = None, ordered: bool = True):
+        for page in self.pages(select, where, page_size, limit, ordered):
+            yield from page
 
     def record_url(self, key_values: dict[str, str]) -> str:
         """Link to the exact source record(s) as JSON from the official API."""

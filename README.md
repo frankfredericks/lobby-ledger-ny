@@ -14,7 +14,7 @@ A public site that links New York campaign finance and lobbying records, so anyo
 | `.github/workflows/update.yml` | Monthly rebuild and publish to GitHub Pages |
 | `data/manual/` | Files you add by hand (City super PAC data, see below) |
 | `data/review/` | Written by each build: audit report and names to review |
-| `data/cache/bill_titles.json` | Bill names already looked up, so each month only fetches new bills |
+| `data/cache/bill_titles_city.json`, `bill_titles_state.json` | Bill names already looked up, so each month only fetches new bills |
 
 ## First-time setup (about 30 minutes)
 
@@ -52,6 +52,14 @@ Offline demo with invented data:
 python tests/make_fixtures.py
 python -m pipeline.run --fixtures tests/fixtures --out site/data
 ```
+
+## How the automatic updates work
+
+- The workflow runs **daily**. The data itself is refreshed **once a month**: on the first run of a new month, each dataset starts a fresh download.
+- Large downloads (mainly State contributions and lobbying) can take longer than one GitHub job allows. Each run downloads for up to 5 hours, saves its progress, and the next day's run continues where it stopped.
+- Until a new month's download finishes, the site keeps using the previous month's data. The very first time, a tab that hasn't finished downloading shows an "on its way" note.
+- Saved downloads live in the GitHub Actions cache (`data/raw`, not in the repo). If the cache is ever cleared, the next runs simply download everything again.
+- The audit runs on the 5th of each month and whenever you start the workflow by hand.
 
 ## Monthly upkeep (about 1 hour)
 

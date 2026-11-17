@@ -13,6 +13,7 @@ import yaml
 
 from .bill_titles import enrich
 from .build import build_city, build_state, write
+from .rawcache import NotReady
 
 
 def main(argv=None):
@@ -30,7 +31,14 @@ def main(argv=None):
     for j, fn in (("city", build_city), ("state", build_state)):
         if args.only and args.only != j:
             continue
-        data = fn(sources[j], settings, args.fixtures)
+        try:
+            data = fn(sources[j], settings, args.fixtures)
+        except NotReady as e:
+            # First-ever download still in progress: publish without this tab and
+            # carry on next run. Not an error.
+            print(f"[{j}] {e} is still downloading; this tab will be published once it finishes.")
+            manifest[j] = {"status": "downloading", "dataset": str(e)}
+            continue
         enrich(data, j, args.fixtures)
         write(data, f"{args.out}/{j}.json")
         m = data["meta"]

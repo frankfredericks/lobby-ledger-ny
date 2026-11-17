@@ -18,7 +18,7 @@
     let raw = window.__DATA__ && window.__DATA__[j];
     if (!raw) {
       const r = await fetch(`data/${j}.json`, { cache: "no-cache" });
-      if (!r.ok) throw new Error(`Couldn’t load data/${j}.json (HTTP ${r.status}).`);
+      if (!r.ok) { const e = new Error(`Couldn’t load data/${j}.json (HTTP ${r.status}).`); e.status = r.status; throw e; }
       raw = await r.json();
     }
     cache[j] = index(raw);
@@ -90,7 +90,11 @@
     try {
       D = await load(state.j);
     } catch (err) {
-      main.innerHTML = `<p class="empty">${esc(err.message)} Check that the monthly data build has run, then reload.</p>`;
+      const other = state.j === "city" ? "state" : "city";
+      $("#notice").innerHTML = "";
+      main.innerHTML = err.status === 404
+        ? `<h1>${JUR[state.j]} records are on their way</h1><p>These public filings are still being collected. The first full download can take a few days, and this tab fills in automatically once it’s done.</p><p>In the meantime, see the <a href="#/${other}">${JUR[other]} tab</a>.</p>`
+        : `<p class="empty">${esc(err.message)} Please try again in a few minutes.</p>`;
       return;
     }
     renderYears();

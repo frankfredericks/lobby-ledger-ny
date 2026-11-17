@@ -150,3 +150,50 @@ def test_paging_by_row_id(monkeypatch):
     assert [r["v"] for r in out] == list(range(25))
     assert seen[0] == "v >= 0" and seen[1] == "(v >= 0) AND :id > 'row-0009'"
     assert len(list(c.rows(["v"], page_size=10, limit=5, ordered=False))) == 5
+
+
+def test_broken_transfers_are_retried(monkeypatch):
+    import requests
+    from pipeline import socrata
+
+    calls = {"n": 0}
+
+    class FakeResp:
+        status_code = 200
+        url = "x"
+        text = ""
+
+        def json(self):
+            return [{"ok": 1}]
+
+    def fake_get(url, params=None, timeout=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise requests.exceptions.ChunkedEncodingError("Connection broken: IncompleteRead")
+        return FakeResp()
+
+    monkeypatch.setattr(socrata.time, "sleep", lambda s: None)
+    c = socrata.Socrata("example.org", "abcd-1234")
+    monkeypatch.setattr(c.s, "get", fake_get)
+    assert c._get("https://example.org/x") == [{"ok": 1}]
+
+
+def test_batch_shrinks_when_a_server_keeps_failing(monkeypatch):
+    import requests
+    from pipeline import socrata
+
+    data = [{":id": f"row-{i:05d}", "v": i} for i in range(5000)]
+    limits = []
+
+    def fake_get(self, url, params=None, tries=6):
+        limits.append(params["$limit"])
+        if params["$limit"] > 2000:
+            raise requests.exceptions.ChunkedEncodingError("Connection broken")
+        w = params.get("$where", "")
+        after = w.split(":id > ")[1].strip("'") if ":id > " in w else ""
+        return [r for r in data if r[":id"] > after][: params["$limit"]]
+
+    monkeypatch.setattr(socrata.Socrata, "_get", fake_get)
+    c = socrata.Socrata("example.org", "abcd-1234")
+    out = list(c.rows(["v"], page_size=8000))
+    assert len(out) == 5000 and limits[:3] == [8000, 4000, 2000]

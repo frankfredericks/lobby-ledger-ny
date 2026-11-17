@@ -12,6 +12,12 @@ import requests
 APP_TOKEN = os.environ.get("SOCRATA_APP_TOKEN", "")
 
 
+# Network failures worth retrying: timeouts, refused or reset connections, and
+# responses cut off mid-transfer (ChunkedEncodingError / ContentDecodingError).
+TRANSIENT = (requests.Timeout, requests.ConnectionError,
+             requests.exceptions.ChunkedEncodingError, requests.exceptions.ContentDecodingError)
+
+
 def _norm(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", (s or "").lower()).strip()
 
@@ -95,8 +101,9 @@ class Socrata:
         for i in range(tries):
             try:
                 r = self.s.get(url, params=params, timeout=300)
-            except (requests.Timeout, requests.ConnectionError) as e:
+            except TRANSIENT as e:
                 last = e
+                print(f"  retrying after {type(e).__name__} (attempt {i + 1} of {tries})", flush=True)
                 time.sleep(min(120, 10 * 2 ** i))
                 continue
             if r.status_code in (429, 500, 502, 503, 504):
@@ -105,7 +112,11 @@ class Socrata:
                 continue
             if r.status_code >= 400:
                 raise requests.HTTPError(f"HTTP {r.status_code} from {r.url}: {r.text[:300]}")
-            return r.json()
+            try:
+                return r.json()
+            except ValueError as e:  # truncated body that still arrived "successfully"
+                last = e
+                time.sleep(min(120, 10 * 2 ** i))
         raise last
 
     def columns(self) -> list[dict]:
@@ -141,7 +152,16 @@ class Socrata:
                 params["$order"] = ":id"
             if w:
                 params["$where"] = w
-            page = self._get(self.resource_url, params)
+            try:
+                page = self._get(self.resource_url, params)
+            except (*TRANSIENT, ValueError) as e:
+                # Repeated failures on one batch: ask for smaller batches and carry on
+                # from the same place, rather than abandoning the whole download.
+                if page_size <= 1000:
+                    raise
+                page_size = max(1000, page_size // 2)
+                print(f"  {label}: {type(e).__name__}; retrying with batches of {page_size:,}", flush=True)
+                continue
             for r in page:
                 last = r.get(":id", last)
                 yield r

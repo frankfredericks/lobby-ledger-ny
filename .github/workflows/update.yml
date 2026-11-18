@@ -52,8 +52,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: data/raw
-          key: raw-${{ matrix.jurisdiction }}-${{ github.run_id }}
-          restore-keys: raw-${{ matrix.jurisdiction }}-
+          key: raw2-${{ matrix.jurisdiction }}-${{ github.run_id }}
+          restore-keys: raw2-${{ matrix.jurisdiction }}-
       - name: Build ${{ matrix.jurisdiction }} data
         env:
           PIPELINE_TIME_BUDGET_MIN: "300"   # stop downloading after 5 hours; the next run resumes
@@ -63,7 +63,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: data/raw
-          key: raw-${{ matrix.jurisdiction }}-${{ github.run_id }}
+          key: raw2-${{ matrix.jurisdiction }}-${{ github.run_id }}
       - uses: actions/upload-artifact@v4
         with:
           name: data-${{ matrix.jurisdiction }}
@@ -125,6 +125,8 @@ jobs:
 
   deploy:
     needs: publish
+    # Deploy whenever publish succeeded, even if one tab's build failed.
+    if: ${{ !cancelled() && needs.publish.result == 'success' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages

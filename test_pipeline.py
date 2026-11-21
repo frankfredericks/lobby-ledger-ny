@@ -299,3 +299,21 @@ def test_live_dataset_uses_cache_and_reports_not_ready(tmp_path, monkeypatch):
     monkeypatch.setattr(rawcache, "out_of_time", lambda: False)
     got = list(sources.Dataset("x", conf).rows("nm IS NOT NULL"))
     assert len(got) == 30 and got[0] == {"name": "Org 0"}
+
+
+def test_super_pac_recipients_are_not_officials(tmp_path):
+    from pipeline.normalize import looks_like_person, display_name
+    assert looks_like_person("Adams, Eric L") and looks_like_person("O'Dwyer, Thomas")
+    for org in ["Affordable New York", "Fix City, Inc", "Hotel Workers for Stronger Communities",
+                "WFP National PAC-NYS IE Committee", "Labor Strong 2023", "Voters, Inc"]:
+        assert not looks_like_person(org), org
+    assert display_name("laborers eastern region organizing fund") == "Laborers Eastern Region Organizing Fund"
+
+    subprocess.check_call([sys.executable, "tests/make_fixtures.py"], cwd=ROOT)
+    subprocess.check_call([sys.executable, "-m", "pipeline.run", "--fixtures", "tests/fixtures", "--out", str(tmp_path),
+                           "--only", "city"], cwd=ROOT)
+    city = json.load(open(tmp_path / "city.json"))
+    names = {o["name"] for o in city["officials"].values()}
+    assert not any("Affordable" in n or "Fix City" in n or n.startswith("Inc") for n in names)
+    assert "ie_committee" in city["entities"]["fix-city"]["roles"]
+    assert any(r[0] == "harborview-realty" and r[1] == "affordable-queens" for r in city["ie_contribs"])

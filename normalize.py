@@ -72,6 +72,28 @@ def entity_key(name: str) -> str:
     return " ".join(toks)
 
 
+ORG_WORDS = {
+    "INC", "INCORPORATED", "LLC", "LP", "LLP", "CORP", "CORPORATION", "CO", "COMPANY", "PAC", "COMMITTEE",
+    "FUND", "PARTY", "UNION", "ASSOCIATION", "COALITION", "ALLIANCE", "FOR", "VOTERS", "CITIZENS", "PEOPLE",
+    "PROGRESS", "FUTURE", "IE", "INDEPENDENT", "EXPENDITURE", "ACTION", "COPE", "NEW", "NYC", "NY", "OUR",
+    "LABOR", "WORKERS", "COUNCIL", "LOCAL", "FRIENDS", "CAMPAIGN", "THE", "AND", "OF", "TO",
+}
+
+
+def looks_like_person(name: str) -> bool:
+    """True for 'Last, First M' names; False for organizations such as
+    'Affordable New York' or 'Fix City, Inc'. NYC Campaign Finance Board data
+    lists candidates as 'Last, First' and independent spenders by organization name."""
+    raw = ascii_upper(name or "")
+    if "," not in raw:
+        return False
+    last, first = raw.split(",", 1)
+    lt, ft = clean(last).split(), clean(first).split()
+    if not lt or not ft or len(lt) > 3:
+        return False
+    return not (set(lt) & ORG_WORDS) and ft[0] not in ORG_WORDS and ft[0] not in LEGAL_SUFFIXES
+
+
 def person_tokens(name: str) -> tuple[str, str, list[str]]:
     """Return (last, first, all_tokens) for 'Last, First M' or 'First M Last'."""
     raw = ascii_upper(name)
@@ -104,7 +126,8 @@ def candidate_from_committee(name: str) -> str:
 def display_name(name: str) -> str:
     """Readable casing for names that arrive in all caps."""
     name = re.sub(r"\s+", " ", (name or "").strip())
-    if name and name == name.upper():
+    if name and (name == name.upper() or name == name.lower()):
+        name = name.upper()
         keep = {"LLC", "LLP", "LP", "PAC", "NY", "NYC", "NYS", "USA", "US", "IBEW", "SEIU",
                 "UFT", "PBA", "CWA", "AFL", "CIO", "DC", "II", "III", "IV", "MTA", "CUNY", "SUNY"}
         parts = []

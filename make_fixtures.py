@@ -44,6 +44,12 @@ for elec in ["2021", "2023", "2025"]:
                          "committee": "A", "date": f"{elec}-03-01T00:00:00.000", "name": f"Doe, Pat {i}",
                          "c_code": "IND", "empname": "Harborview Realty", "amnt": "250", "refno": f"R{ref}",
                          "schedule": "ABC"})
+for (spender, donor, code, amt) in [("Affordable Queens", "Harborview Realty LLC", "LLC", "400000"),
+                                    ("Fix City, Inc", "Metro Rideshare Technologies Inc", "CORP", "250000")]:
+    ref += 1
+    rows.append({"election": "2025", "officecd": "", "recipid": "IE" + str(ref), "canclass": "", "recipname": spender,
+                 "committee": "", "date": "2025-04-01T00:00:00.000", "name": donor, "c_code": code,
+                 "empname": "", "amnt": amt, "refno": f"R{ref}", "schedule": "ABC"})
 dump("city_contributions", cols, rows)
 
 lcols = ["client_id", "lobbyist_id", "lobbyist_name", "lobbyist_po", "report_year", "client_name", "client_po",

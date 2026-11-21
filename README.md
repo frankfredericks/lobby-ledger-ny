@@ -78,12 +78,11 @@ python -m pipeline.run --fixtures tests/fixtures --out site/data
 
 ## City super PAC (independent expenditure) data
 
-NYC's open data contributions file covers donations to candidates only. Independent spenders and their donors are published on the Campaign Finance Board's Follow the Money portal: <https://www.nyccfb.info/follow-the-money/follow-the-money/>. Until a bulk download is available, export the spender data from the portal and save two CSVs in `data/manual/`:
+The NYC contributions file includes gifts to independent-expenditure committees (super PACs), so super PAC pages and their organization donors appear automatically. What it doesn't include is which candidates each super PAC spent money supporting or opposing. That comes from the Campaign Finance Board's Follow the Money portal: <https://www.nyccfb.info/follow-the-money/follow-the-money/>.
 
-- `city_ie_contributions.csv` with columns `spender, contributor, amount, date, source_url`
-- `city_ie_expenditures.csv` with columns `spender, candidate, support_oppose, amount, date, source_url`
+To link super PACs to candidates, export the spending data and save it as `data/manual/city_ie_expenditures.csv` with columns `spender, candidate, support_oppose, amount, date, source_url` (template in the same folder). Until then, officials' pages don't list super PAC donors, and the site shows a coverage note.
 
-Templates are in the same folder. If the files are missing, the City tab shows a coverage warning and omits super PAC donors. Worth asking the CFB whether they publish this as a bulk file or API; if so, add it to `config/sources.yml` and replace the manual step.
+Optional: `data/manual/city_ie_contributions.csv` (`spender, contributor, amount, date, source_url`) adds individual donors to super PACs, which the automatic download leaves out.
 
 ## How the data is shaped
 

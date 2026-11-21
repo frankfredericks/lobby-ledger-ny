@@ -1,0 +1,168 @@
+# Every dataset the pipeline reads.
+#
+# `fields` maps a logical name used by the pipeline to a list of candidate column
+# names. At run time the pipeline downloads each dataset's column metadata and
+# picks the first candidate that exists (matching on API field name, then on the
+# human-readable column name). `python -m pipeline.audit` reports any logical
+# field that could not be resolved, so schema changes surface instead of
+# silently producing empty pages.
+#
+# `required: true` fields stop the build if unresolved.
+# `record_key` lists the logical fields that identify one source record; they
+# are used to build a "view source record" link for every row on the site.
+
+city:
+  contributions:
+    title: NYC Campaign Contributions (Campaign Finance Board)
+    domain: data.cityofnewyork.us
+    id: rjkp-yttg
+    page_url: https://data.cityofnewyork.us/City-Government/Campaign-Contributions/rjkp-yttg
+    fields:
+      election:    {candidates: [election], required: true}
+      office:      {candidates: [officecd]}
+      recip_id:    {candidates: [recipid], required: true}
+      recip_name:  {candidates: [recipname], required: true}
+      cand_first:  {candidates: [candfirst]}
+      committee:   {candidates: [committee]}
+      date:        {candidates: [date], required: true}
+      donor_name:  {candidates: [name], required: true}
+      donor_type:  {candidates: [c_code], required: true}
+      employer:    {candidates: [empname]}
+      amount:      {candidates: [amnt], required: true}
+      refno:       {candidates: [refno]}
+      schedule:    {candidates: [schedule]}
+    record_key: [election, recip_id, refno]
+    # Individuals, candidates, family and spouses are excluded server-side.
+    # Everything else (PACs, unions, party committees, LLCs, partnerships,
+    # corporations, "other") is kept.
+    individual_codes: [IND, CAN, FAM, SPO]
+
+  # Independent-expenditure (super PAC) donors and spending targets.
+  # The CFB publishes these through its Follow the Money | NYC portal rather
+  # than NYC Open Data. Super PAC donors (organizations) come from the contributions file above; export the
+  # spender contribution and spending CSVs from the portal into data/manual/
+  # with the column names documented in README.md. The pipeline loads them if
+  # present and skips them (with an audit warning) if not.
+  ie_contributions:
+    title: NYC independent spender contributions (CFB Follow the Money portal)
+    manual_csv: data/manual/city_ie_contributions.csv
+    page_url: https://www.nyccfb.info/follow-the-money/follow-the-money/
+  ie_expenditures:
+    title: NYC independent expenditures by candidate (CFB Follow the Money portal)
+    manual_csv: data/manual/city_ie_expenditures.csv
+    page_url: https://www.nyccfb.info/follow-the-money/follow-the-money/
+
+  lobbying:
+    title: City Clerk eLobbyist Data
+    domain: data.cityofnewyork.us
+    id: fmf3-knd8
+    page_url: https://data.cityofnewyork.us/City-Government/City-Clerk-eLobbyist-Data/fmf3-knd8
+    fields:
+      client_id:     {candidates: [client_id]}
+      client_name:   {candidates: [client_name], required: true}
+      lobbyist_id:   {candidates: [lobbyist_id]}
+      lobbyist_name: {candidates: [lobbyist_name], required: true}
+      year:          {candidates: [periodic_year, report_year], required: true}
+      period:        {candidates: [period]}
+      periodic_id:   {candidates: [periodic_id]}
+      activities:    {candidates: [periodic_activities], required: true}
+      targets:       {candidates: [periodic_targets], required: true}
+      compensation:  {candidates: [compensation_total]}
+      industry:      {candidates: [client_industry, industry], keywords: [industry]}
+    record_key: [periodic_id]
+
+  fundraising:
+    title: Lobbyists Fundraising and Political Consulting Reports
+    domain: data.cityofnewyork.us
+    id: 7arw-dbem
+    page_url: https://data.cityofnewyork.us/City-Government/Lobbyists-Fundraising-and-Political-Consulting-Rep/7arw-dbem
+    fields:
+      lobbyist_name: {candidates: [lobbyist_name, lobbyist_entity, lobbyist], keywords: [lobbyist]}
+      candidate:     {candidates: [candidate_name, candidate, office_holder], keywords: [candidate]}
+      amount:        {candidates: [amount, total_amount, amount_raised, contribution_amount], keywords: [amount, total]}
+      year:          {candidates: [report_year, year, election_year], keywords: [year]}
+      kind:          {candidates: [report_type, activity_type, type], keywords: [type]}
+      record_id:     {candidates: [report_id, id, filing_id], keywords: [id]}
+    record_key: [record_id]
+
+  doing_business:
+    title: Doing Business Contributions Summary (CFB)
+    domain: data.cityofnewyork.us
+    id: fbkk-n4e3
+    page_url: https://data.cityofnewyork.us/City-Government/Doing-Business-Contributions-Summary/fbkk-n4e3
+    fields:
+      name:   {candidates: [name, contributor_name, contname], keywords: [name]}
+      entity: {candidates: [entity_name, empname, organization, business_name], keywords: [entity, business, organization]}
+
+  # City Council sessions. Intro numbers restart each session, so a bill ID
+  # is (number, session). Edit when a new session starts.
+  council_sessions: [[2014, 2017], [2018, 2021], [2022, 2023], [2024, 2025], [2026, 2029]]
+
+state:
+  contributions:
+    title: NYS Campaign Finance Disclosure Reports Contributions (Board of Elections)
+    domain: data.ny.gov
+    id: 4j2b-6a2j
+    page_url: https://data.ny.gov/Government-Finance/Campaign-Finance-Disclosure-Reports-Contributions-/4j2b-6a2j
+    fields:
+      filer_id:       {candidates: [filer_id], required: true}
+      filer_name:     {candidates: [filer_name, cand_comm_name], required: true}
+      cand_name:      {candidates: [cand_name, candidate_name]}
+      office:         {candidates: [office_desc, office]}
+      district:       {candidates: [district]}
+      committee_type: {candidates: [committee_type_desc, comm_type_desc, filer_type_desc], keywords: [committee type, filer type]}
+      year:           {candidates: [election_year], required: true}
+      date:           {candidates: [sched_date, org_date, date]}
+      donor_name:     {candidates: [flng_ent_name, contributor_name, cntrbr_name], required: true}
+      donor_first:    {candidates: [flng_ent_first_name]}
+      donor_last:     {candidates: [flng_ent_last_name]}
+      donor_type:     {candidates: [cntrbr_type_desc, contributor_type_desc, contributor_type], required: true}
+      amount:         {candidates: [org_amt, amount, amt], required: true}
+      trans_id:       {candidates: [trans_number, transaction_id]}
+    record_key: [filer_id, trans_id]
+    individual_types: [Individual, Candidate, Candidate/Candidate Spouse, Candidate Spouse, Self]
+    # Offices kept when an office column exists. Matching is case-insensitive
+    # "contains". If no office column resolves, filers are kept and matched to
+    # officials by name instead.
+    offices: [governor, lieutenant governor, attorney general, comptroller, state senator, senate, member of assembly, assembly]
+    ie_committee_markers: [independent expenditure]
+
+  ie_expenditures:
+    title: NYS Campaign Finance Disclosure Reports (all transactions)
+    domain: data.ny.gov
+    id: e9ss-239a
+    page_url: https://data.ny.gov/Government-Finance/Campaign-Finance-Disclosure-Reports-Data-Beginning/e9ss-239a
+    fields:
+      filer_id:     {candidates: [filer_id], required: true}
+      filer_name:   {candidates: [filer_name, cand_comm_name], required: true}
+      year:         {candidates: [election_year], required: true}
+      sched_desc:   {candidates: [filing_sched_desc]}
+      filing_cat:   {candidates: [filing_cat_desc]}
+      target:       {candidates: [ie_cand_name, ie_candidate_name, supported_candidate, cand_name_supported], keywords: [supported, opposed, ie cand]}
+      stance:       {candidates: [ie_support_oppose, support_oppose], keywords: [support]}
+      amount:       {candidates: [org_amt, amount], required: true}
+      trans_id:     {candidates: [trans_number]}
+    record_key: [filer_id, trans_id]
+
+  lobbying:
+    title: Lobbyist Bi-Monthly Reports, 2019 to present (COELIG)
+    domain: data.ny.gov
+    id: t9kf-dqbc
+    page_url: https://data.ny.gov/d/t9kf-dqbc
+    fields:
+      form_id:         {candidates: [form_submission_id], required: true}
+      year:            {candidates: [reporting_year], required: true}
+      filing_type:     {candidates: [filing_type]}
+      period:          {candidates: [reporting_period]}
+      lobbyist_name:   {candidates: [principal_lobbyist_name, principal_lobbyist], required: true}
+      contract_client: {candidates: [contractual_client_name, contractual_client]}
+      client_name:     {candidates: [beneficial_client_name, beneficial_client], required: true}
+      compensation:    {candidates: [current_period_compensation]}
+      level:           {candidates: [level_of_government]}
+      focus_type:      {candidates: [type_of_lobbying_focus, lobbying_focus_type], keywords: [focus type, type of lobbying focus]}
+      focus:           {candidates: [focus_identifying_number_description, focus_identifying_number_or_description, lobbying_focus_identifying_number_or_description], keywords: [identifying number, focus identifying], required: true}
+      gov_body:        {candidates: [government_body]}
+      party:           {candidates: [parties_lobbied, party_lobbied, party_name], keywords: [parties lobbied, party]}
+      person:          {candidates: [first_and_last_name_or_title_of_person_lobbied, person_lobbied], keywords: [person lobbied]}
+      monitoring_only: {candidates: [monitoring_only]}
+    record_key: [form_id]

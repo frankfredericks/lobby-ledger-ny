@@ -9,7 +9,7 @@ from collections import defaultdict
 
 from . import bills as B
 from .entities import EntityResolver
-from .normalize import candidate_from_committee, entity_key, person_key
+from .normalize import candidate_from_committee, entity_key, looks_like_person, person_key
 from .officials import OfficialIndex
 from .socrata import soql_quote
 from .sources import Dataset, load_manual_csv
@@ -177,6 +177,18 @@ def build_city(conf: dict, settings: dict, fixtures: str | None = None) -> dict:
         name = r.get("recip_name") or ""
         if r.get("cand_first") and "," not in name:
             name = f"{name}, {r['cand_first']}"
+        if not looks_like_person(name):
+            # Recipients that aren't people are independent-expenditure committees
+            # (super PACs): record the gift as super PAC money, not a campaign contribution.
+            sk = out.ents.add(name, "ie_committee")
+            dk = out.ents.add(r.get("donor_name", ""), "ie_donor")
+            if sk and dk:
+                c = out.ie_contribs[(dk, sk, y)]
+                c[0] += _amt(r.get("amount"))
+                c[1] += 1
+                c[2] = c[2] or "cc|" + ds.src(r, ["recip_id", "donor_name"])
+                out.counts["ie_contribution_rows"] += 1
+            continue
         office = CITY_OFFICES.get(str(r.get("office", "")).strip(), "")
         ok = out.offs.add(name, office)
         dk = out.ents.add(r.get("donor_name", ""), "donor")
@@ -196,33 +208,36 @@ def build_city(conf: dict, settings: dict, fixtures: str | None = None) -> dict:
         load_manual_csv(os.path.join(fixtures, "city_ie_expenditures.csv"))
     out.register_source("iec", None, conf["ie_contributions"]["title"], conf["ie_contributions"]["page_url"],
                         conf["ie_contributions"]["page_url"])
-    if iec is None or ies is None:
-        out.warnings.append("City independent-expenditure files not found in data/manual/; super PAC donors "
-                            "are missing from the City tab. See README.")
-    else:
-        for r in iec:
-            y = _year(r.get("date"))
-            if not y or y < start:
-                continue
-            sk = out.ents.add(r.get("spender", ""), "ie_committee")
-            dk = out.ents.add(r.get("contributor", ""), "ie_donor")
-            if sk and dk:
-                c = out.ie_contribs[(dk, sk, y)]
-                c[0] += _amt(r.get("amount"))
-                c[1] += 1
-                c[2] = c[2] or "url|" + r.get("source_url", "")
-        for r in ies:
-            y = _year(r.get("date"))
-            if not y or y < start:
-                continue
-            sk = out.ents.add(r.get("spender", ""), "ie_committee")
-            ok = out.offs.add(r.get("candidate", ""))
-            if sk and ok:
-                c = out.ie_spend[(sk, ok, y)]
-                c[0] += _amt(r.get("amount"))
-                st = (r.get("support_oppose") or "").lower()
-                c[1] = c[1] or ("oppose" if st.startswith("o") else "support" if st.startswith("s") else "")
-                c[2] = c[2] or "url|" + r.get("source_url", "")
+    if ies is None:
+        out.warnings.append("Super PAC donors appear on each committee’s page, but which candidates each super PAC "
+                            "supported or opposed isn’t linked yet: add the Campaign Finance Board spending file "
+                            "(see README).")
+    # Optional extra file: individual donors to super PACs (the open data file only
+    # has organizations, because individuals are filtered out of the download).
+    for r in (iec or []):
+        y = _year(r.get("date"))
+        if not y or y < start:
+            continue
+        sk = out.ents.add(r.get("spender", ""), "ie_committee")
+        dk = out.ents.add(r.get("contributor", ""), "ie_donor")
+        if sk and dk:
+            c = out.ie_contribs[(dk, sk, y)]
+            c[0] += _amt(r.get("amount"))
+            c[1] += 1
+            c[2] = c[2] or "url|" + r.get("source_url", "")
+    # Which candidates each super PAC spent on.
+    for r in (ies or []):
+        y = _year(r.get("date"))
+        if not y or y < start:
+            continue
+        sk = out.ents.add(r.get("spender", ""), "ie_committee")
+        ok = out.offs.add(r.get("candidate", ""))
+        if sk and ok:
+            c = out.ie_spend[(sk, ok, y)]
+            c[0] += _amt(r.get("amount"))
+            st = (r.get("support_oppose") or "").lower()
+            c[1] = c[1] or ("oppose" if st.startswith("o") else "support" if st.startswith("s") else "")
+            c[2] = c[2] or "url|" + r.get("source_url", "")
 
     # Lobbying
     lb = Dataset("city_lobbying", conf["lobbying"], fixtures, settings["page_size"])
